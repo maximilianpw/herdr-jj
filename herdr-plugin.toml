@@ -1,0 +1,71 @@
+id = "personal.herdr-jj"
+name = "JJ / Git Workspaces"
+version = "0.1.0"
+min_herdr_version = "0.9.5"
+description = "Unified JJ and Git workspace creation and opening, JJ-first status, and recoverable JJ cleanup."
+platforms = ["macos", "linux"]
+
+[[build]]
+command = ["bun", "install", "--frozen-lockfile"]
+
+[[build]]
+command = ["bun", "run", "build"]
+
+[[startup]]
+command = ["./dist/herdr-jj", "refresh"]
+
+[[actions]]
+id = "create"
+title = "New workspace (JJ or Git)"
+contexts = ["workspace"]
+command = ["./dist/herdr-jj", "action", "create"]
+
+[[actions]]
+id = "open"
+title = "Open workspace (JJ or Git)"
+contexts = ["workspace"]
+command = ["./dist/herdr-jj", "action", "open"]
+
+[[actions]]
+id = "cleanup"
+title = "Archive JJ workspace (keep files)"
+contexts = ["workspace"]
+command = ["./dist/herdr-jj", "action", "cleanup"]
+
+[[actions]]
+id = "refresh-status"
+title = "Refresh JJ status (last snapshot)"
+contexts = ["workspace", "global"]
+command = ["./dist/herdr-jj", "refresh"]
+
+[[events]]
+on = "workspace.created"
+command = ["./dist/herdr-jj", "refresh"]
+
+[[events]]
+on = "workspace.focused"
+command = ["./dist/herdr-jj", "refresh"]
+
+[[panes]]
+id = "create"
+title = "new workspace"
+placement = "popup"
+width = 68
+height = 18
+command = ["./dist/herdr-jj", "pane", "create"]
+
+[[panes]]
+id = "open"
+title = "open workspace"
+placement = "popup"
+width = 96
+height = 20
+command = ["./dist/herdr-jj", "pane", "open"]
+
+[[panes]]
+id = "cleanup"
+title = "archive JJ workspace"
+placement = "popup"
+width = "85%"
+height = 22
+command = ["./dist/herdr-jj", "pane", "cleanup"]

@@ -1,0 +1,30 @@
+# Merge into your existing Herdr config; do not replace it.
+# These example keys may conflict with your current bindings.
+
+[[keys.command]]
+key = "prefix+j"
+type = "plugin_action"
+command = "personal.herdr-jj.create"
+description = "new workspace (JJ or Git)"
+
+[[keys.command]]
+key = "prefix+o"
+type = "plugin_action"
+command = "personal.herdr-jj.open"
+description = "open workspace (JJ or Git)"
+
+[[keys.command]]
+key = "prefix+x"
+type = "plugin_action"
+command = "personal.herdr-jj.cleanup"
+description = "archive jj workspace (keep files)"
+
+[[keys.command]]
+key = "prefix+r"
+type = "plugin_action"
+command = "personal.herdr-jj.refresh-status"
+description = "refresh jj last-snapshot status"
+
+[ui.sidebar.spaces]
+# JJ when available; Git-only repositories retain branch and ahead/behind status.
+rows = [["state_icon", "workspace"], ["$vcs_status", "$vcs_bookmark"]]
