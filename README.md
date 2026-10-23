@@ -45,7 +45,7 @@ Pin an immutable release tag in your configuration:
 
 ```nix
 inputs.herdr-jj = {
-  url = "github:maximilianpw/herdr-jj/v0.1.0";
+  url = "github:maximilianpw/herdr-jj/v0.1.1";
   # Follow a package set with Bun >= 1.3.14 and JJ >= 0.46, not older stable Nixpkgs.
   inputs.nixpkgs.follows = "nixpkgs-unstable";
 };
@@ -83,7 +83,7 @@ Home Manager activation.
 To try the CLI without registering a plugin:
 
 ```sh
-nix run github:maximilianpw/herdr-jj/v0.1.0 -- --help
+nix run github:maximilianpw/herdr-jj/v0.1.1 -- --help
 ```
 
 ### Building and verifying a release
@@ -123,12 +123,14 @@ Merge the relevant entries from [`docs/herdr-config.toml`](docs/herdr-config.tom
 | `personal.herdr-jj.refresh-status` | prefix+r    | Publish last-snapshot status                             |
 
 The terminal popups follow Herdr's native dialog layout: compact fields, highlighted two-line workspace rows, muted paths, and footer buttons. They remain plugin terminal popups, not native dialog APIs.
-- **Create:** type the name, use **Tab / Shift+Tab** to change fields and **←/→** to choose JJ/Git or the JJ base. Git accepts an editable commit/ref. **Enter** creates and opens directly; invalid names stay in the form. The checkout path updates as you type.
+- **Create:** type the name, use **Tab / Shift+Tab** to change fields and **←/→** to choose JJ/Git or the JJ base. Git accepts an editable commit/ref. **Enter** creates and opens directly. Empty names and invalid JJ names stay in the form; Git validates branch names before creation. The checkout path updates as you type.
 - **Open:** type or press **/** to filter names, paths, and VCS types. **↑/↓**, **Page Up/Down**, and **Home/End** navigate the list; **Enter** opens the selected result. **Esc** clears an active filter, then closes the picker; **Ctrl+C** closes immediately. Empty results never open a workspace.
 - **Text fields:** cursor editing, **Home/End**, and **Ctrl+A/E/U** are supported. Layouts redraw on terminal resize without animations.
 - Colors match Herdr's default Catppuccin palette and the relevant top-level `theme.custom` overrides from its config. Other themes fall back to terminal ANSI colors; native theme switching is not exposed to plugins.
 
-Creation opens and focuses the new Herdr space. Workspace names are 1–64 letters/digits/hyphens/underscores, starting with a letter or digit. Checkouts go beside the primary repository as `<repo>.jj-<name>` or `<repo>.git-<name>`. The Git choice creates a **new branch named `<name>`**, from the current Git commit or an explicit local commit/ref; it never resets an existing branch or copies source edits. Existing Git worktrees can be opened by their full branch name or exact path, including branches with slashes.
+Creation opens and focuses the new Herdr space. **Git branch names have no plugin-imposed length limit or character allowlist**: full Linear-style names such as `maximilianpw/vev-1113-fix-pool-vehicle-translation-and-pool_car-key-reuse` are preserved exactly. Git's own branch-name rules and filesystem limits still apply. The Git choice creates a **new branch named `<name>`**, from the current Git commit or an explicit local commit/ref; it never resets an existing branch or copies source edits. Checkouts go beside the primary repository as `<repo>.git-<encoded-name>`: slashes become `%2F`, other unsafe filename characters are percent-encoded, and long encoded names use a shortened prefix plus a stable hash. Only the directory/journal filenames change, never the branch name. Existing short alphanumeric/hyphen/underscore names keep their original paths and journals. Open Git worktrees by their full branch name or exact listed path.
+
+JJ workspace names remain 1–64 letters/digits/hyphens/underscores, starting with a letter or digit, with checkouts at `<repo>.jj-<name>`.
 - **New task from trunk:** a new change on locally known `trunk()`. No fetch; fetch explicitly with jj when appropriate.
 - **Continue current change:** snapshot the source, then create a **new child of `@`**. It copies the current work into a new line of development, not a second editor for the exact same change.
 - JJ creation snapshots the source; Git creation, list, open, cleanup preview, and default status do not. JJ current-change continuation requires a JJ source checkout; from a Git-only sibling, start from JJ trunk or open a JJ workspace first. Resolving a trunk base alone does not snapshot, so an invalid trunk is refused before changing the source. New checkouts always include all files, even when the source uses sparse patterns.

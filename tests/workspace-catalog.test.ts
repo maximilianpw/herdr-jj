@@ -1,6 +1,12 @@
 import { afterEach, beforeEach, expect, test } from "bun:test";
-import { existsSync, readFileSync, renameSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import {
+  existsSync,
+  readdirSync,
+  readFileSync,
+  renameSync,
+  writeFileSync,
+} from "node:fs";
+import { dirname, join } from "node:path";
 import { z } from "zod";
 import { parse } from "../src/command";
 import { type Fixture, fixture } from "./fixtures";
@@ -124,6 +130,74 @@ test("explicit Git creation in a JJ repo keeps source edits and JJ history uncha
   ]);
   expect(list().filter((entry) => entry.path === path)).toHaveLength(1);
 });
+
+test.each([
+  "maximilianpw/vev-1113-fix-pool-vehicle-translation-and-pool_car-key-reuse",
+  "feature/release.v1+fix_é",
+  "_task",
+  "a".repeat(180),
+  Array.from({ length: 5 }, (_, i) => `${i}-${"b".repeat(90)}`).join("/"),
+])("Git creation preserves the full branch name: %s", (name) => {
+  const args = ["create", name, "--vcs", "git", "--no-open"];
+  success(args);
+  const workspace = list().find((entry) => entry.name === name);
+  expect(workspace?.kind).toBe("git");
+  if (!workspace?.path) throw new Error("Missing Git checkout");
+  expect(dirname(workspace.path)).toBe(dirname(f.repo));
+  expect(
+    f.commands.git(workspace.path, ["branch", "--show-current"]).trim(),
+  ).toBe(name);
+  success(args);
+  expect(list().filter((entry) => entry.name === name)).toHaveLength(1);
+  success(["open", name, "--vcs", "git"]);
+  expect(f.calls()).toContainEqual([
+    "worktree",
+    "open",
+    "--cwd",
+    f.repo,
+    "--path",
+    workspace.path,
+    "--label",
+    `git: ${name}`,
+    "--no-focus",
+  ]);
+});
+
+test("slash and percent branch names have distinct checkout paths and journals", () => {
+  for (const name of ["feature/task", "feature%2Ftask", "feature_task"]) {
+    success(["create", name, "--vcs", "git", "--no-open"]);
+    success(["create", name, "--vcs", "git", "--no-open"]);
+  }
+  const paths = list()
+    .filter((entry) => entry.kind === "git")
+    .map((entry) => entry.path);
+  expect(new Set(paths).size).toBe(3);
+});
+
+test.each([
+  "bad name",
+  "bad..name",
+  "../escape",
+  "bad:name",
+  "bad~name",
+  "bad.lock",
+  "bad//name",
+  "@{-1}",
+])(
+  "Git-invalid names are rejected before writing a creation receipt: %s",
+  (name) => {
+    const before = list();
+    const result = f.cli(["create", name, "--vcs", "git", "--no-open"]);
+    expect(result.status).toBe(1);
+    expect(result.json()).toMatchObject({ error: { code: "invalid_input" } });
+    expect(list()).toEqual(before);
+    expect(
+      readdirSync(f.state, { recursive: true, encoding: "utf8" }).filter(
+        (entry) => entry.endsWith(".json"),
+      ),
+    ).toEqual([]);
+  },
+);
 
 test("Git-only repositories default to Git creation and never initialize JJ", () => {
   gitOnly();

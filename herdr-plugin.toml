@@ -1,6 +1,6 @@
 id = "personal.herdr-jj"
 name = "JJ / Git Workspaces"
-version = "0.1.0"
+version = "0.1.1"
 min_herdr_version = "0.9.5"
 description = "Unified JJ and Git workspace creation and opening, JJ-first status, and recoverable JJ cleanup."
 platforms = ["macos", "linux"]

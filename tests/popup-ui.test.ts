@@ -58,7 +58,39 @@ test("Tab and arrows change type and base without extra wizard screens", () => {
   });
 });
 
-test("invalid names stay in the form; cancellation never submits", () => {
+test.each([
+  "maximilianpw/vev-1113-fix-pool-vehicle-translation-and-pool_car-key-reuse",
+  "feature/release.v1+fix_é",
+  "a".repeat(300),
+])(
+  "Git forms submit branch names without app-specific restrictions: %s",
+  (name) => {
+    const form = new WorkspaceForm({ ...options, allowJj: false });
+    type(form, name);
+    const frame = form.render(42, 16);
+    for (const line of frame.lines)
+      expect(Bun.stringWidth(Bun.stripANSI(line))).toBeLessThanOrEqual(42);
+    expect(frame.cursor?.x).toBeLessThan(42);
+    expect(form.handleKey(undefined, key("return"))).toEqual({
+      type: "submit",
+      value: { name, kind: "git", base: "HEAD" },
+    });
+  },
+);
+
+test("Git checkout previews encode slashes without changing the branch name", () => {
+  const form = new WorkspaceForm({ ...options, allowJj: false });
+  type(form, "feature/task");
+  expect(plain(form)).toContain("/repo/project.git-feature%2Ftask");
+});
+
+test("empty Git branch names stay in the form", () => {
+  const form = new WorkspaceForm({ ...options, allowJj: false });
+  expect(form.handleKey(undefined, key("return"))).toBeUndefined();
+  expect(plain(form)).toContain("Branch name is required");
+});
+
+test("invalid JJ names stay in the form; cancellation never submits", () => {
   const form = new WorkspaceForm(options);
   type(form, "bad/name");
   expect(form.handleKey(undefined, key("return"))).toBeUndefined();

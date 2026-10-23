@@ -283,13 +283,16 @@ behavior = "drop"
 
         send(b"\x02j")
         mark = wait_text(b"workspace-name", mark)
-        send(b"popup-git")
+        branch = "maximilianpw/vev-1113-fix-pool-vehicle-translation-and-pool_car-key-reuse"
+        send(branch.encode())
         send(b"\x1b[Z\x1b[C")  # Shift-tab to type, right to Git.
-        mark = wait_text(b"repo.git-popup-git", mark)
+        mark = wait_text(b"repo.git-maximilianpw%2F", mark)
+        (evidence / "linear-branch-create.txt").write_text("\n".join(screen.display))
         send(b"\r")
-        mark = wait_text(b"git: popup-git", mark)
         wait_popup_exit()
-        git_target = home / "repo.git-popup-git"
+        git_target = home / f"repo.git-{branch.replace('/', '%2F')}"
+        assert run(["git", "branch", "--show-current"], git_target).stdout.strip() == branch
+        cli("create", branch, "--vcs", "git", "--base", "HEAD", "--no-open")
         assert git_target.joinpath(".git").is_file() and not git_target.joinpath(".jj").exists()
         inventory = cli("list")["workspaces"]
         assert len(inventory) == 3, inventory
@@ -302,7 +305,7 @@ behavior = "drop"
         mark = wait_text(b"3 workspaces", mark)
         wait_text(b"GIT", mark - 1)
         (evidence / "mixed-workspace-picker.txt").write_text("\n".join(screen.display))
-        send(b"/popup-git")
+        send(b"/vev-1113")
         mark = wait_text(b"1/3 workspaces", mark)
         (evidence / "native-style-filter.txt").write_text("\n".join(screen.display))
         assert any(cell.bg == "89b4fa" for line in screen.buffer.values() for cell in line.values()), "Selected row is not highlighted"
@@ -314,7 +317,7 @@ behavior = "drop"
         assert focused_after == focused_before
         send(b"\x1b")  # Clearing the filter also proves the picker stayed open.
         mark = wait_text(b"3 workspaces", mark)
-        send(b"/popup-git\r")
+        send(b"/vev-1113\r")
         wait_popup_exit()
         assert h("workspace", "get", git_linked["workspace_id"])["workspace"]["focused"]
         # A Git-only sibling still discovers the repository's JJ support.
@@ -329,7 +332,7 @@ behavior = "drop"
         print(json.dumps({"passed": ["isolated manifest registration", "compiled CLI create/open",
               "colocated grouping", "submodule create/open/status", "JJ-only rendered sidebar", "Git-only rendered fallback", "sidebar tokens", "idempotent open", "close preserves checkout",
               "cleanup archive", "real keybinding popup create", "Escape cancellation", "CLI/popup shared journal",
-              "open popup", "confirmed cleanup popup", "single-form creation and live path preview", "Git creation popup", "mixed counted workspace picker", "search and empty-result safety", "native-style colors", "Git-only default creation"],
+              "open popup", "confirmed cleanup popup", "single-form creation and live path preview", "Linear branch creation popup and exact CLI retry", "mixed counted workspace picker", "search and empty-result safety", "native-style colors", "Git-only default creation"],
               "live_session_modified": False}, indent=2))
     finally:
         (evidence / "herdr-plugin-log.json").write_text(run([herdr, "--session", "jj-test", "plugin", "log", "list", "--plugin", "personal.herdr-jj"], check=False).stdout)

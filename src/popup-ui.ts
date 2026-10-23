@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { emitKeypressEvents, type Key } from "node:readline";
 import { z } from "zod";
 import { PluginError } from "./command";
+import { gitWorkspacePath } from "./git-workspaces";
 import { workspaceName } from "./repository";
 import type { WorkspaceKind } from "./workspace-catalog";
 
@@ -245,7 +246,12 @@ export class WorkspaceForm implements Dialog<WorkspaceDraft> {
       return { type: "cancel" };
     if (key.name === "return") {
       try {
-        const name = workspaceName(this.name.value);
+        const name =
+          this.kind === "git"
+            ? this.name.value
+            : workspaceName(this.name.value);
+        if (!name)
+          throw new PluginError("invalid_input", "Branch name is required.");
         if (this.kind === "git" && !this.gitBase.value.trim())
           throw new PluginError("invalid_input", "Git base is required.");
         return {
@@ -324,7 +330,7 @@ export class WorkspaceForm implements Dialog<WorkspaceDraft> {
     row(pathRow - 1, " checkout", this.theme.muted);
     row(
       pathRow,
-      ` ${this.options.primary}.${this.kind}-${this.name.value || "<name>"}`,
+      ` ${this.kind === "git" && this.name.value ? gitWorkspacePath(this.options.primary, this.name.value) : `${this.options.primary}.${this.kind}-${this.name.value || "<name>"}`}`,
       this.theme.muted,
     );
     row(

@@ -1,8 +1,8 @@
+import { createHash } from "node:crypto";
 import { existsSync, realpathSync } from "node:fs";
 import { basename, dirname, join, resolve } from "node:path";
 import { z } from "zod";
 import { type Commands, PluginError, parse } from "./command";
-import { workspaceName } from "./repository";
 import type { PluginState } from "./state";
 
 const gitWorkspaceSchema = z.object({
@@ -22,6 +22,22 @@ const gitCreationSchema = z.object({
   parent: z.string(),
   phase: z.enum(["creating", "ready"]),
 });
+
+function gitWorkspaceDirectoryName(name: string): string {
+  const encoded = encodeURIComponent(name);
+  // Branch identity stays verbatim; only filesystem names are encoded/bounded.
+  // Git forbids ~, so hashed names cannot collide with an encoded short name.
+  return encoded.length <= 120
+    ? encoded
+    : `${encoded.slice(0, 48)}~${createHash("sha256").update(name).digest("hex")}`;
+}
+
+export function gitWorkspacePath(primary: string, name: string): string {
+  return join(
+    dirname(primary),
+    `${basename(primary)}.git-${gitWorkspaceDirectoryName(name)}`,
+  );
+}
 
 export class GitWorkspaces {
   private constructor(
@@ -150,17 +166,33 @@ export class GitWorkspaces {
     return workspace;
   }
 
-  create(nameInput: string, base: string, state: PluginState): GitWorkspace {
-    const name = workspaceName(nameInput);
-    const path = join(
-      dirname(this.primary),
-      `${basename(this.primary)}.git-${name}`,
+  create(name: string, base: string, state: PluginState): GitWorkspace {
+    const validation = this.commands.run(
+      "git",
+      ["check-ref-format", "--branch", name],
+      this.root,
     );
+    if (validation.error || validation.status === null) {
+      throw new PluginError(
+        "command_failed",
+        "Git branch validation could not run. Check Git before retrying.",
+        { cause: validation.error },
+      );
+    }
+    if (validation.status !== 0 || validation.stdout !== `${name}\n`) {
+      throw new PluginError(
+        "invalid_input",
+        "Invalid Git branch name. Use a literal branch name accepted by git check-ref-format --branch.",
+      );
+    }
+    const path = gitWorkspacePath(this.primary, name);
+    const receiptKey = `git-create-${gitWorkspaceDirectoryName(name)}`;
     return state.withLock(() => {
-      let receipt = state.read(`git-create-${name}`, gitCreationSchema);
+      let receipt = state.read(receiptKey, gitCreationSchema);
       if (
         receipt &&
-        (receipt.path !== path ||
+        (receipt.name !== name ||
+          receipt.path !== path ||
           receipt.source !== this.root ||
           receipt.base !== base)
       ) {
@@ -212,7 +244,7 @@ export class GitWorkspaces {
           parent,
           phase: "creating",
         };
-        state.write(`git-create-${name}`, receipt);
+        state.write(receiptKey, receipt);
       }
       if (!this.list().some((entry) => entry.path === path)) {
         if (receipt.phase === "ready" || existsSync(path)) {
@@ -249,7 +281,7 @@ export class GitWorkspaces {
           "Git workspace branch or commit no longer matches its creation receipt.",
         );
       }
-      state.write(`git-create-${name}`, { ...receipt, phase: "ready" });
+      state.write(receiptKey, { ...receipt, phase: "ready" });
       return workspace;
     });
   }
