@@ -33,6 +33,84 @@ jj git init --colocate
 
 Opening or creating a workspace never runs that command for you. JJ is the default creation type when the primary repository has JJ; otherwise Git is the only available type. Existing non-colocated jj repositories require explicit `jj git colocation enable`. The plugin supports ordinary colocated repositories and submodule-backed repositories whose `.git` file points into the superproject. It resolves the primary checkout through JJ's `.jj/repo` metadata and verifies that JJ, Git, and the primary checkout share the same Git repository; bare repositories and mismatched metadata are refused. Set up a first commit and a meaningful `trunk()` before creating workspaces; a virtual-root base is refused.
 
+## Nix installation and releases
+
+The flake provides a compiled executable for `aarch64-darwin`, `aarch64-linux`,
+and `x86_64-linux`. Current unstable Nixpkgs no longer supports Intel macOS. It installs `bin/herdr-jj` and a complete
+plugin directory at `share/herdr-jj`. The executable supplies its own pinned
+JJ, Git, and `lsof` through a wrapper; Herdr 0.9.5+ must still be installed.
+No Bun installation or source checkout is needed at runtime.
+
+Pin an immutable release tag in your configuration:
+
+```nix
+inputs.herdr-jj = {
+  url = "github:maximilianpw/herdr-jj/v0.1.0";
+  # Follow a package set with Bun >= 1.3.14 and JJ >= 0.46, not older stable Nixpkgs.
+  inputs.nixpkgs.follows = "nixpkgs-unstable";
+};
+```
+
+A Home Manager module can install and register the already-built package:
+
+```nix
+{ inputs, lib, pkgs, ... }:
+let
+  plugin = inputs.herdr-jj.packages.${pkgs.stdenv.hostPlatform.system}.default;
+in {
+  home.packages = [ plugin ];
+  home.activation.linkHerdrJJ = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
+    run ${lib.getExe pkgs.herdr} plugin link ${plugin}/share/herdr-jj
+  '';
+}
+```
+
+This assumes `inputs` is supplied through Home Manager's `extraSpecialArgs` and
+`pkgs.herdr` is provided by your configuration (for example, `llm-agents.nix`).
+The `run` helper respects activation dry runs. Registration is idempotent and
+uses the existing `personal.herdr-jj` ID, replacing a previous development link
+without touching your Herdr settings, checkouts, journals, or recovery archives.
+Herdr continues to own its mutable registry. Hjem/Home Manager may independently
+own your static `config.toml`; do not manage the plugin registry as a static file.
+
+Change the tag and run `nix flake update herdr-jj` to upgrade, then build and
+activate your configuration normally. `flake.lock` pins the exact commit and
+content hash. Activating an older configuration re-registers its packaged version;
+it does **not** roll back journals or workspace data. Do not move released tags.
+Manual development linking temporarily overrides the registration until the next
+Home Manager activation.
+
+To try the CLI without registering a plugin:
+
+```sh
+nix run github:maximilianpw/herdr-jj/v0.1.0 -- --help
+```
+
+### Building and verifying a release
+
+```sh
+nix build                         # includes isolated installed-package smoke tests
+nix flake check                   # builds checks for the current system
+uv run tests/verify-herdr.py --plugin-root "$(realpath result)/share/herdr-jj"
+```
+
+The installed-package smoke test clears the caller's PATH and exercises real
+JJ/Git workspace creation and inventory through the wrapper, with a disposable
+HOME and no Herdr server. The real-Herdr check also exercises idempotent store-path
+registration and the actual dialogs without changing the live user registry.
+
+After changing `bun.lock`, regenerate the dependency expression and include both
+files in the release:
+
+```sh
+nix develop -c bun2nix -o bun.nix
+nix fmt
+```
+
+Before tagging, keep `package.json` and `herdr-plugin.toml` versions aligned and
+run `bun run check`, `nix flake check`, and the real-Herdr check above. Publish the
+verified commit and a new `vX.Y.Z` tag; consumers update their own input explicitly.
+
 ## Herdr keys and sidebar
 
 Merge the relevant entries from [`docs/herdr-config.toml`](docs/herdr-config.toml) into your own Herdr configuration. **Do not replace your config with the example.** Check for existing key conflicts. The plugin does not modify your settings.
@@ -143,7 +221,7 @@ bun run check           # typecheck, Biome, real jj/Git + fake-Herdr boundary te
 bun run verify:herdr    # build + real isolated Herdr server and terminal client
 ```
 
-The real-surface check uses a temporary HOME/config/registry, asserts isolation before linking, creates only disposable repositories, and stops only its own named server. It exercises compiled CLI actions, grouping, metadata, close-vs-cleanup separation, the actual popup keybinding, creation, cancellation, and shared CLI/popup journals. Logs/terminal evidence live in ignored `.verification/`. Nothing is linked into the active user session. Automated checks are exercised on macOS; Linux support is implemented but still needs a Linux run.
+The real-surface check uses a temporary HOME/config/registry, asserts isolation before linking, creates only disposable repositories, and stops only its own named server. It exercises compiled CLI actions, grouping, metadata, close-vs-cleanup separation, the actual popup keybinding, creation, cancellation, and shared CLI/popup journals. Logs/terminal evidence live in ignored `.verification/`. Nothing is linked into the active user session. Pass `--plugin-root /path/to/package/share/herdr-jj` to the Python script to verify the packaged plugin instead of the development build. Automated checks are exercised on macOS; Linux outputs are evaluated but still need a Linux build/run.
 
 ## References and ownership
 

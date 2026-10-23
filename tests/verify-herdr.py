@@ -4,6 +4,7 @@
 # dependencies = ["pyte==0.8.2", "wcwidth==0.2.13"]
 # ///
 """Real Herdr smoke test, isolated config/registry/session and disposable jj repo."""
+import argparse
 import codecs
 import fcntl
 import json
@@ -31,8 +32,13 @@ project = Path(__file__).resolve().parent.parent
 herdr = shutil.which("herdr")
 jj = shutil.which("jj")
 assert herdr and jj, "Install Herdr 0.9.5+ and jj 0.46+ first"
-plugin = project / "dist/herdr-jj"
-assert plugin.is_file(), "Run bun run build first"
+parser = argparse.ArgumentParser()
+parser.add_argument("--plugin-root", type=Path, default=project,
+                    help="Plugin directory to verify (source tree or Nix store package/share/herdr-jj)")
+args = parser.parse_args()
+plugin_root = args.plugin_root.resolve()
+plugin = plugin_root / "dist/herdr-jj"
+assert plugin.is_file(), "Build the plugin first"
 evidence = project / ".verification"
 evidence.mkdir(exist_ok=True)
 
@@ -116,7 +122,9 @@ behavior = "drop"
     run(["git", "switch", "-c", "git-hidden"], repo)
     config_dir = Path(run([herdr, "plugin", "config-dir", "personal.herdr-jj"]).stdout.strip())
     assert config_dir.is_relative_to(home), "Refusing to link outside the isolated home"
-    run([herdr, "plugin", "link", project])
+    # Home Manager runs this again on every activation and on rollback.
+    run([herdr, "plugin", "link", plugin_root])
+    run([herdr, "plugin", "link", plugin_root])
     server_log = open(evidence / "herdr-server.log", "w")
     server = subprocess.Popen([herdr, "--session", "jj-test", "server"], env=env, cwd=repo,
                               stdout=server_log, stderr=server_log)
